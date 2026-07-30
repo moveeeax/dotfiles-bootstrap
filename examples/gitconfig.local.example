@@ -1,0 +1,11 @@
+# Copy to ~/.config/dotfiles/gitconfig.local — git-ignored, included by .gitconfig.
+# Keep identity and any tokens HERE, never in the tracked .gitconfig.
+[user]
+	name = Your Name
+	email = you@example.com
+
+# Optional: a signing key.
+# [user]
+#	signingkey = 0xDEADBEEF
+# [commit]
+#	gpgsign = true

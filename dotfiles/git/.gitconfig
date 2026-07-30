@@ -1,0 +1,28 @@
+# .gitconfig — managed by dotfiles-bootstrap.
+# Identity is intentionally NOT set here; keep it in ~/.config/dotfiles/local.sh
+# or a git-ignored ~/.gitconfig.local so this file stays reusable and secret-free.
+[include]
+	path = ~/.config/dotfiles/gitconfig.local
+
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
+[push]
+	default = current
+	autoSetupRemote = true
+[core]
+	editor = vim
+	autocrlf = input
+[color]
+	ui = auto
+[alias]
+	st = status -sb
+	co = checkout
+	br = branch
+	lg = log --oneline --graph --decorate
+	last = log -1 HEAD --stat
+[diff]
+	algorithm = histogram
+[merge]
+	conflictStyle = zdiff3

@@ -1,0 +1,38 @@
+---
+# playbook.yml — install the documented developer toolset reproducibly.
+#
+# Run standalone:   ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
+# Or via bootstrap: ./bootstrap.sh --packages
+#
+# The task list is data (group_vars/all.yml), so adding a tool is a one-line
+# edit and the play stays idempotent — Ansible's package module is a no-op when
+# a package is already present.
+- name: Provision developer environment
+  hosts: local
+  gather_facts: true
+  become: "{{ dotfiles_become | default(true) }}"
+
+  tasks:
+    - name: Install the developer toolset (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: "{{ dev_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install the developer toolset (RedHat/Fedora)
+      ansible.builtin.dnf:
+        name: "{{ dev_packages }}"
+        state: present
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Install the developer toolset (Arch)
+      community.general.pacman:
+        name: "{{ dev_packages }}"
+        state: present
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Report toolset
+      ansible.builtin.debug:
+        msg: "Ensured {{ dev_packages | length }} packages present: {{ dev_packages | join(', ') }}"

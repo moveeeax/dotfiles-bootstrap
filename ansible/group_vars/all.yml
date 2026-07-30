@@ -1,0 +1,16 @@
+---
+# The documented toolset installed by playbook.yml. Edit this list, not the play.
+dev_packages:
+  - git
+  - vim
+  - tmux
+  - curl
+  - wget
+  - jq
+  - ripgrep
+  - fzf
+  - htop
+  - unzip
+
+# Set to false to install into a user scope without sudo (rarely useful for apt/dnf).
+dotfiles_become: true

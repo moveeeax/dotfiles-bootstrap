@@ -1,0 +1,10 @@
+# hosts/example-host/shell/.bashrc.local
+#
+# Per-host override demo. Copy this directory to hosts/$(hostname -s)/ and put
+# machine-specific config here. Anything under hosts/<name>/ is linked AFTER the
+# base packages, so it overrides them. `bootstrap.sh` picks the directory that
+# matches `hostname -s` automatically.
+#
+# This file is here purely to demonstrate the mechanism and to give the test
+# suite a fixture; it links to ~/.bashrc.local, which nothing sources by default.
+export DOTFILES_HOST_OVERRIDE_APPLIED=1

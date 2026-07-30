@@ -1,0 +1,13 @@
+# Local, machine-specific, or secret material must never be committed.
+# (User overrides live in ~/.config/dotfiles/, outside this repo — not ignored here.)
+/local/
+/secrets/
+*.dotbak
+
+# Editor / OS noise.
+*.swp
+*~
+.DS_Store
+
+# Ansible retry files.
+*.retry

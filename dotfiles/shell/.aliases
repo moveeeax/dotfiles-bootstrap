@@ -1,0 +1,16 @@
+# .aliases — managed by dotfiles-bootstrap.
+
+alias ll='ls -alhF'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias grep='grep --color=auto'
+
+# Git shortcuts I actually type all day.
+alias gs='git status -sb'
+alias gd='git diff'
+alias gl='git log --oneline --graph --decorate -20'
+alias gp='git push'
+alias gc='git commit'
+alias ga='git add'

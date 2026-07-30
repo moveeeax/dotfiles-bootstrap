@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint shell sources
+        run: shellcheck bootstrap.sh lib/*.sh
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run tests
+        run: bats tests/
+
+  bootstrap-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap into a throwaway HOME (twice — must be idempotent)
+        run: |
+          set -euo pipefail
+          fake="$(mktemp -d)"
+          HOME="$fake" TARGET_DIR="$fake" NO_COLOR=1 ./bootstrap.sh
+          HOME="$fake" TARGET_DIR="$fake" NO_COLOR=1 ./bootstrap.sh | tee /tmp/second.log
+          grep -q "already linked" /tmp/second.log
+          test -L "$fake/.bashrc" && test -L "$fake/.gitconfig"
+          test -z "$(find "$fake" -name '*.dotbak')"   # no spurious backups on re-run
+          bash -n "$fake/.bashrc"
+
+  ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+      - name: Syntax-check the playbook
+        run: ansible-playbook -i ansible/inventory.ini ansible/playbook.yml --syntax-check

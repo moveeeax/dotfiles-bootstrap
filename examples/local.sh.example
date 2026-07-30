@@ -1,0 +1,8 @@
+# Copy to ~/.config/dotfiles/local.sh — this path is git-ignored.
+# Sourced last by ~/.bashrc, so it overrides anything above it.
+
+# Machine-specific PATH additions.
+export PATH="$HOME/.local/bin:$PATH"
+
+# A per-machine prompt tag, work proxy, etc.
+export DOTFILES_MACHINE="laptop"
