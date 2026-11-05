@@ -7,31 +7,56 @@
 # The task list is data (group_vars/all.yml), so adding a tool is a one-line
 # edit and the play stays idempotent — Ansible's package module is a no-op when
 # a package is already present.
+#
+# Supported OS families: Debian, RedHat, Archlinux, Darwin (macOS via Homebrew).
+# Anything else fails loudly instead of silently installing nothing.
 - name: Provision developer environment
   hosts: local
   gather_facts: true
-  become: "{{ dotfiles_become | default(true) }}"
+
+  vars:
+    dotfiles_supported_os_families: [Debian, RedHat, Archlinux, Darwin]
 
   tasks:
+    - name: Fail on an unsupported OS family
+      ansible.builtin.assert:
+        that: ansible_facts['os_family'] in dotfiles_supported_os_families
+        fail_msg: >-
+          OS family '{{ ansible_facts['os_family'] }}' is not supported by this playbook
+          (supported: {{ dotfiles_supported_os_families | join(', ') }}).
+          Install the toolset manually: {{ dev_packages | join(' ') }}
+        quiet: true
+
     - name: Install the developer toolset (Debian/Ubuntu)
       ansible.builtin.apt:
         name: "{{ dev_packages }}"
         state: present
         update_cache: true
         cache_valid_time: 3600
+      become: "{{ dotfiles_become | default(true) }}"
       when: ansible_facts['os_family'] == 'Debian'
 
     - name: Install the developer toolset (RedHat/Fedora)
       ansible.builtin.dnf:
         name: "{{ dev_packages }}"
         state: present
+      become: "{{ dotfiles_become | default(true) }}"
       when: ansible_facts['os_family'] == 'RedHat'
 
     - name: Install the developer toolset (Arch)
       community.general.pacman:
         name: "{{ dev_packages }}"
         state: present
+      become: "{{ dotfiles_become | default(true) }}"
       when: ansible_facts['os_family'] == 'Archlinux'
+
+    # Homebrew refuses to run as root, so this task never escalates.
+    - name: Install the developer toolset (macOS, Homebrew)
+      community.general.homebrew:
+        name: "{{ dev_packages }}"
+        state: present
+      become: false
+      when: ansible_facts['os_family'] == 'Darwin'
 
     - name: Report toolset
       ansible.builtin.debug:

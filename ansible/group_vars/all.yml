@@ -12,5 +12,5 @@ dev_packages:
   - htop
   - unzip
 
-# Set to false to install into a user scope without sudo (rarely useful for apt/dnf).
+# Set to false to skip sudo for apt/dnf/pacman (rarely useful). Homebrew on macOS never uses sudo.
 dotfiles_become: true
