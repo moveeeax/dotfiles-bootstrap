@@ -94,3 +94,80 @@ setup() {
   run link_file "$SRCDIR/does-not-exist" "$TARGET/x"
   [ "$status" -ne 0 ]
 }
+
+# --- prune_links ------------------------------------------------------------
+
+@test "prune_links removes a dangling link into the dotfiles dir" {
+  echo a > "$SRCDIR/.gone"
+  link_file "$SRCDIR/.gone" "$TARGET/.gone"
+  rm "$SRCDIR/.gone"                       # tracked file deleted from the repo
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ ! -L "$TARGET/.gone" ]
+  [[ "$output" == *"pruned $TARGET/.gone (dangling -> .gone)"* ]]
+}
+
+@test "prune_links restores the .dotbak saved when the link was made" {
+  echo new > "$SRCDIR/.rc"
+  echo old > "$TARGET/.rc"
+  link_file "$SRCDIR/.rc" "$TARGET/.rc"
+  rm "$SRCDIR/.rc"
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ ! -L "$TARGET/.rc" ]
+  [ "$(cat "$TARGET/.rc")" = "old" ]
+  [ ! -e "$TARGET/.rc.dotbak" ]
+  [[ "$output" == *"restored"* ]]
+}
+
+@test "prune_links leaves dangling links that point outside the dotfiles dir" {
+  ln -s /nonexistent/elsewhere "$TARGET/.foreign"
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ -L "$TARGET/.foreign" ]
+}
+
+@test "prune_links keeps links that still resolve" {
+  echo a > "$SRCDIR/.keep"
+  link_file "$SRCDIR/.keep" "$TARGET/.keep"
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ -L "$TARGET/.keep" ]
+  [[ "$output" == *"prune: 0 stale link(s)"* ]]
+}
+
+@test "prune_links dry-run reports but touches nothing" {
+  echo new > "$SRCDIR/.d"
+  echo old > "$TARGET/.d"
+  link_file "$SRCDIR/.d" "$TARGET/.d"
+  rm "$SRCDIR/.d"
+  DOT_DRY_RUN=1 run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ -L "$TARGET/.d" ]
+  [ "$(cat "$TARGET/.d.dotbak")" = "old" ]
+  [[ "$output" == *"[dry-run] would prune"* ]]
+  [[ "$output" == *"[dry-run] would restore"* ]]
+}
+
+@test "prune_links scans ~/.config/<app> and parents of tracked files" {
+  mkdir -p "$SRCDIR/.config/app" "$SRCDIR/.local/share/tool"
+  echo a > "$SRCDIR/.config/app/old"
+  echo b > "$SRCDIR/.local/share/tool/old"
+  echo c > "$SRCDIR/.local/share/tool/kept"
+  link_package "$SRCDIR" "$TARGET"
+  rm "$SRCDIR/.config/app/old" "$SRCDIR/.local/share/tool/old"
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ ! -L "$TARGET/.config/app/old" ]
+  [ ! -L "$TARGET/.local/share/tool/old" ]
+  [ -L "$TARGET/.local/share/tool/kept" ]
+  [[ "$output" == *"prune: 2 stale link(s)"* ]]
+}
+
+@test "prune_links does not walk directories outside its scan roots" {
+  mkdir -p "$TARGET/projects/deep"
+  ln -s "$SRCDIR/.missing" "$TARGET/projects/deep/.missing"
+  run prune_links "$TARGET" "$SRCDIR" "$SRCDIR"
+  [ "$status" -eq 0 ]
+  [ -L "$TARGET/projects/deep/.missing" ]
+}

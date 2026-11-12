@@ -75,3 +75,17 @@ run_bootstrap() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage:"* ]]
 }
+
+@test "--prune removes a link whose tracked file is gone, default run keeps it" {
+  run_bootstrap
+  # A link left over from a dotfile that has since been removed from the repo.
+  ln -s "$REPO/dotfiles/shell/.removed_rc" "$FAKE_HOME/.removed_rc"
+  run run_bootstrap
+  [ "$status" -eq 0 ]
+  [ -L "$FAKE_HOME/.removed_rc" ]
+  run run_bootstrap --prune
+  [ "$status" -eq 0 ]
+  [ ! -L "$FAKE_HOME/.removed_rc" ]
+  [[ "$output" == *"pruned"*".removed_rc (dangling -> dotfiles/shell/.removed_rc)"* ]]
+  [ -L "$FAKE_HOME/.bashrc" ]              # live links untouched
+}

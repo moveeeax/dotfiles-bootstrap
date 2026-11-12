@@ -93,3 +93,76 @@ link_package() {
 
   log_info "package $(basename "$pkg"): $count file(s)"
 }
+
+# prune_links TARGET_DIR DOTFILES_DIR [PKG_DIR...]
+#   Removes dangling symlinks under TARGET_DIR whose target lies inside
+#   DOTFILES_DIR: what is left behind when a tracked file is deleted or
+#   renamed. A <link>.dotbak next to a pruned link is moved back into place.
+#
+#   The scan is depth-limited, never a full walk of $HOME:
+#     * TARGET_DIR itself (depth 1)
+#     * TARGET_DIR/.config (depth 2, i.e. ~/.config/<app>/<file>)
+#     * the parent dir of every file the given packages currently track
+#   Paths the packages still track are skipped: link_file repoints those.
+#   Dry-run aware, like link_file.
+prune_links() {
+  local target=$1 dotdir=$2 dry=${DOT_DRY_RUN:-0}
+  shift 2
+  local pkg src rel tracked='' dirs='' seen='' dir depth link dest count=0
+  if [ ! -d "$dotdir" ]; then
+    log_error "not a dotfiles directory: $dotdir"
+    return 1
+  fi
+  dotdir=$(cd "$dotdir" && pwd)
+  [ -d "$target" ] || return 0
+
+  # Newline-separated lists (bash 3.2 on macOS has no associative arrays).
+  dirs="$target 1"$'\n'"$target/.config 2"$'\n'
+  for pkg in "$@"; do
+    [ -d "$pkg" ] || continue
+    pkg=$(cd "$pkg" && pwd)
+    while IFS= read -r -d '' src; do
+      rel=${src#"$pkg"/}
+      tracked="$tracked$target/$rel"$'\n'
+      dir=$(dirname "$target/$rel")
+      case $'\n'"$dirs" in
+        *$'\n'"$dir "[12]$'\n'*) ;;
+        *) dirs="$dirs$dir 1"$'\n' ;;
+      esac
+    done < <(find "$pkg" -type f -print0)
+  done
+
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    depth=${dir##* }
+    dir=${dir% *}
+    [ -d "$dir" ] || continue
+    while IFS= read -r -d '' link; do
+      [ -e "$link" ] && continue                  # still resolves -> not stale
+      dest=$(_link_target "$link" 2>/dev/null) || continue
+      case "$dest" in "$dotdir"/*) ;; *) continue ;; esac
+      case $'\n'"$tracked" in *$'\n'"$link"$'\n'*) continue ;; esac
+      # Scan roots can overlap (~/.config vs ~/.config/app); handle each once.
+      case $'\n'"$seen" in *$'\n'"$link"$'\n'*) continue ;; esac
+      seen="$seen$link"$'\n'
+
+      if [ "$dry" = 1 ]; then
+        log_info "[dry-run] would prune ${link/#$HOME/~} (dangling -> ${dest#"$dotdir"/})"
+      else
+        rm "$link"
+        log_ok "pruned ${link/#$HOME/~} (dangling -> ${dest#"$dotdir"/})"
+      fi
+      if [ -e "$link.dotbak" ] || [ -L "$link.dotbak" ]; then
+        if [ "$dry" = 1 ]; then
+          log_info "[dry-run] would restore ${link/#$HOME/~} from ${link##*/}.dotbak"
+        else
+          mv "$link.dotbak" "$link"
+          log_ok "restored ${link/#$HOME/~} from ${link##*/}.dotbak"
+        fi
+      fi
+      count=$((count + 1))
+    done < <(find "$dir" -mindepth 1 -maxdepth "$depth" -type l -print0 | sort -z)
+  done <<<"$dirs"
+
+  log_info "prune: $count stale link(s)"
+}
