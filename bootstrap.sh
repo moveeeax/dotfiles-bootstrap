@@ -14,6 +14,8 @@ DOTFILES_DIR=${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 TARGET_DIR=${TARGET_DIR:-$HOME}
 export DOT_DRY_RUN=0
 DO_PACKAGES=0
+DO_PRUNE=0
+linked_pkgs=()
 
 # shellcheck source=lib/log.sh
 . "$DOTFILES_DIR/lib/log.sh"
@@ -28,6 +30,7 @@ Usage: ./bootstrap.sh [options]
 
   --dry-run       Show what would change without touching the filesystem.
   --packages      Also run the Ansible playbook to install the toolset.
+  --prune         Remove dangling links left by deleted/renamed tracked files.
   --target DIR    Link into DIR instead of \$HOME (used by tests).
   -h, --help      Show this help.
 
@@ -39,6 +42,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run)  DOT_DRY_RUN=1 ;;
     --packages) DO_PACKAGES=1 ;;
+    --prune)    DO_PRUNE=1 ;;
     --target)   TARGET_DIR=$2; shift ;;
     --target=*) TARGET_DIR=${1#*=} ;;
     -h|--help)  usage; exit 0 ;;
@@ -58,6 +62,7 @@ if [ -d "$DOTFILES_DIR/dotfiles" ]; then
   for pkg in "$DOTFILES_DIR"/dotfiles/*/; do
     [ -d "$pkg" ] || continue
     link_package "$pkg" "$TARGET_DIR"
+    linked_pkgs+=("$pkg")
   done
 else
   log_warn "no dotfiles/ directory found"
@@ -71,9 +76,18 @@ if [ -d "$host_dir" ]; then
   for pkg in "$host_dir"/*/; do
     [ -d "$pkg" ] || continue
     link_package "$pkg" "$TARGET_DIR"
+    linked_pkgs+=("$pkg")
   done
 else
   log_skip "no host overrides for '$host' (hosts/$host absent)"
+fi
+
+# 2b) Optional: drop links whose tracked file was deleted or renamed. Runs after
+#     linking so a file that only moved between packages is repointed, not pruned.
+if [ "$DO_PRUNE" = 1 ]; then
+  prune_links "$TARGET_DIR" "$DOTFILES_DIR" ${linked_pkgs[@]+"${linked_pkgs[@]}"}
+else
+  log_skip "stale-link prune (pass --prune to run it)"
 fi
 
 # 3) Local, un-tracked extras: ~/.config/dotfiles/ is git-ignored and sourced

@@ -21,6 +21,8 @@ cd ~/.dotfiles && ./bootstrap.sh
   the repo layout mirrors your home directory, so `dotfiles/git/.gitconfig` → `~/.gitconfig`.
 - **Never clobbers.** A real file already in the way is moved to `<file>.dotbak` before linking.
 - **Is idempotent.** Re-running leaves correct links untouched and creates no new backups.
+- **Cleans up after itself** with `--prune`: links left dangling by a deleted or renamed tracked
+  file are removed, and the `.dotbak` saved when they were made is put back.
 - **Installs the toolset** via an Ansible playbook (`--packages`) that is itself idempotent.
 - **Keeps secrets out of git.** `~/.config/dotfiles/` is git-ignored and sourced by the shell rc;
   per-host overrides live under `hosts/<hostname>/` and win over the base config.
@@ -39,6 +41,13 @@ dotfiles/git/.gitconfig  ->   ~/.gitconfig
 The one detail that makes re-runs safe: before linking, `link_file` checks whether the target is
 **already the symlink we want** (skip), a **stale symlink** (repoint, no backup), or a **real file**
 (back up to `.dotbak`, then link). That three-way check is what the test suite pins down.
+
+`--prune` covers the opposite case: a file removed from `dotfiles/<pkg>/` leaves its symlink
+behind. After linking, `prune_links` looks for symlinks that point into the repo but no longer
+resolve and removes them (`pruned ~/.foo (dangling -> dotfiles/x/.foo)`), restoring `~/.foo.dotbak`
+if there is one. The scan is depth-limited, not a walk of `$HOME`: the top level of the target,
+`~/.config/<app>/`, and the parent directory of every file the packages still track. Dangling
+links that point outside the repo are never touched. `--dry-run` reports what would be pruned.
 
 Layout:
 
@@ -66,10 +75,11 @@ warn dry-run: no changes will be made
 
 $ ./bootstrap.sh                 # link everything for real
 $ ./bootstrap.sh --packages      # also run the Ansible playbook
+$ ./bootstrap.sh --prune         # also remove links to files deleted from the repo
 $ ./bootstrap.sh --target /tmp/x # link into a sandbox instead of $HOME
 ```
 
-Flags: `--dry-run`, `--packages`, `--target DIR`, `--help`. Honors `DOTFILES_DIR`,
+Flags: `--dry-run`, `--packages`, `--prune`, `--target DIR`, `--help`. Honors `DOTFILES_DIR`,
 `TARGET_DIR`, and `NO_COLOR`.
 
 ### Per-host overrides & secrets
@@ -81,7 +91,7 @@ Flags: `--dry-run`, `--packages`, `--target DIR`, `--help`. Honors `DOTFILES_DIR
 ## Development
 
 ```bash
-bats tests/                       # run the suite (17 tests)
+bats tests/                       # run the suite (25 tests)
 shellcheck bootstrap.sh lib/*.sh  # lint
 ```
 
